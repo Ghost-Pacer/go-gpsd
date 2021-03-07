@@ -3,6 +3,7 @@ package gpsd
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -18,7 +19,8 @@ type Filter func(interface{})
 type Session struct {
 	socket  net.Conn
 	reader  *bufio.Reader
-	filters map[string][]Filter
+	filters map[string]Filter
+	closed  bool
 }
 
 // Mode describes status of a TPV report
@@ -189,7 +191,7 @@ func Dial(address string) (session *Session, err error) {
 
 	session.reader = bufio.NewReader(session.socket)
 	session.reader.ReadString('\n')
-	session.filters = make(map[string][]Filter)
+	session.filters = make(map[string]Filter)
 
 	return
 }
@@ -200,18 +202,28 @@ func Dial(address string) (session *Session, err error) {
 //    gps := gpsd.Dial(gpsd.DEFAULT_ADDRESS)
 //    done := gpsd.Watch()
 //    <- done
-func (s *Session) Watch() (done chan bool) {
+func (s *Session) Watch() (done chan bool, err error) {
+	if s.closed {
+		err = errors.New("Session is nil.")
+		return nil, err
+	}
+
 	fmt.Fprintf(s.socket, "?WATCH={\"enable\":true,\"json\":true}")
 	done = make(chan bool)
 
 	go watch(done, s)
 
-	return
+	return done, nil
 }
 
 // SendCommand sends a command to GPSD
-func (s *Session) SendCommand(command string) {
+func (s *Session) SendCommand(command string) error {
+	if s.closed {
+		return errors.New("Session is nil.")
+	}
+
 	fmt.Fprintf(s.socket, "?"+command+";")
+	return nil
 }
 
 // AddFilter attaches a function which will be called for all
@@ -225,38 +237,63 @@ func (s *Session) SendCommand(command string) {
 //    })
 //    done := gps.Watch()
 //    <- done
-func (s *Session) AddFilter(class string, f Filter) {
-	s.filters[class] = append(s.filters[class], f)
+func (s *Session) AddFilter(class string, f Filter) error {
+	if s.closed {
+		return errors.New("Session is nil.")
+	}
+
+	s.filters[class] = f
+	return nil
+}
+
+func (s *Session) RemoveFilter(class string) error {
+	if s.closed {
+		return errors.New("Session is nil.")
+	}
+
+	s.filters[class] = nil
+	return nil
 }
 
 func (s *Session) deliverReport(class string, report interface{}) {
-	for _, f := range s.filters[class] {
-		f(report)
-	}
+	f := s.filters[class]
+	f(report)
+}
+
+func (s *Session) destroy() {
+	fmt.Fprintf(s.socket, "?WATCH={\"enable\":false}")
+	s.socket.Close()
+	s.closed = true
 }
 
 func watch(done chan bool, s *Session) {
 	// We're not using a JSON decoder because we first need to inspect
 	// the JSON string to determine it's "class"
 	for {
-		if line, err := s.reader.ReadString('\n'); err == nil {
-			var reportPeek gpsdReport
-			lineBytes := []byte(line)
-			if err = json.Unmarshal(lineBytes, &reportPeek); err == nil {
-				if len(s.filters[reportPeek.Class]) == 0 {
-					continue
-				}
+		select {
+		case <-done:
+			s.destroy()
+			return
+		default:
+			if line, err := s.reader.ReadString('\n'); err == nil {
+				var reportPeek gpsdReport
+				lineBytes := []byte(line)
+				if err = json.Unmarshal(lineBytes, &reportPeek); err == nil {
+					if s.filters[reportPeek.Class] == nil {
+						continue
+					}
 
-				if report, err2 := unmarshalReport(reportPeek.Class, lineBytes); err2 == nil {
-					s.deliverReport(reportPeek.Class, report)
+					if report, err2 := unmarshalReport(reportPeek.Class, lineBytes); err2 == nil {
+						s.deliverReport(reportPeek.Class, report)
+					} else {
+						fmt.Println("JSON parsing error 2:", err)
+					}
 				} else {
-					fmt.Println("JSON parsing error 2:", err)
+					fmt.Println("JSON parsing error:", err)
 				}
 			} else {
-				fmt.Println("JSON parsing error:", err)
+				fmt.Println("Stream reader error (is gpsd running?):", err)
 			}
-		} else {
-			fmt.Println("Stream reader error (is gpsd running?):", err)
 		}
 	}
 }
