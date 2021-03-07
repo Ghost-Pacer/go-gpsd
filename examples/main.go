@@ -36,14 +36,14 @@ func setup() *gpsd.Session {
 
 func connectTest() {
 	gps := setup()
-	done := gps.Watch()
+	done, _ := gps.Watch()
 	<-done
 
 }
 
 func disconnectTest() {
 	gps := setup()
-	done := gps.Watch()
+	done, _ := gps.Watch()
 
 	fmt.Println("Sleeping...")
 	time.Sleep(3 * time.Second)
@@ -61,7 +61,7 @@ func restartSessionTest() {
 	gps := setup()
 
 	fmt.Println("Start Watching")
-	done := gps.Watch()
+	done, err := gps.Watch()
 	time.Sleep(3 * time.Second)
 
 	fmt.Println("Stop Watching")
@@ -69,13 +69,16 @@ func restartSessionTest() {
 	time.Sleep(6 * time.Second)
 
 	fmt.Println("Start Watching")
-	done = gps.Watch()
+	done, err = gps.Watch()
+	if err != nil {
+		fmt.Println(err)
+	}
 	time.Sleep(3 * time.Second)
 }
 
 func removeFilterTest() {
 	gps := setup()
-	done := gps.Watch()
+	done, _ := gps.Watch()
 
 	fmt.Println("Started watching")
 	time.Sleep(3 * time.Second)

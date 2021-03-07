@@ -3,6 +3,7 @@ package gpsd
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -201,18 +202,28 @@ func Dial(address string) (session *Session, err error) {
 //    gps := gpsd.Dial(gpsd.DEFAULT_ADDRESS)
 //    done := gpsd.Watch()
 //    <- done
-func (s *Session) Watch() (done chan bool) {
+func (s *Session) Watch() (done chan bool, err error) {
+	if s.closed {
+		err = errors.New("Session is nil.")
+		return nil, err
+	}
+
 	fmt.Fprintf(s.socket, "?WATCH={\"enable\":true,\"json\":true}")
 	done = make(chan bool)
 
 	go watch(done, s)
 
-	return
+	return done, nil
 }
 
 // SendCommand sends a command to GPSD
-func (s *Session) SendCommand(command string) {
+func (s *Session) SendCommand(command string) error {
+	if s.closed {
+		return errors.New("Session is nil.")
+	}
+
 	fmt.Fprintf(s.socket, "?"+command+";")
+	return nil
 }
 
 // AddFilter attaches a function which will be called for all
@@ -226,12 +237,22 @@ func (s *Session) SendCommand(command string) {
 //    })
 //    done := gps.Watch()
 //    <- done
-func (s *Session) AddFilter(class string, f Filter) {
+func (s *Session) AddFilter(class string, f Filter) error {
+	if s.closed {
+		return errors.New("Session is nil.")
+	}
+
 	s.filters[class] = f
+	return nil
 }
 
-func (s *Session) RemoveFilter(class string) {
+func (s *Session) RemoveFilter(class string) error {
+	if s.closed {
+		return errors.New("Session is nil.")
+	}
+
 	s.filters[class] = nil
+	return nil
 }
 
 func (s *Session) deliverReport(class string, report interface{}) {
