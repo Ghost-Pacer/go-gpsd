@@ -66,7 +66,7 @@ func restartSessionTest() {
 
 	fmt.Println("Stop Watching")
 	done <- true
-	time.Sleep(3 * time.Second)
+	time.Sleep(6 * time.Second)
 
 	fmt.Println("Start Watching")
 	done = gps.Watch()

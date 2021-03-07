@@ -244,6 +244,7 @@ func watch(done chan bool, s *Session) {
 	for {
 		select {
 		case <-done:
+			fmt.Fprintf(s.socket, "?WATCH={\"enable\":false}")
 			return
 		default:
 			if line, err := s.reader.ReadString('\n'); err == nil {
