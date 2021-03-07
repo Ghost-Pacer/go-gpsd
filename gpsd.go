@@ -19,6 +19,7 @@ type Session struct {
 	socket  net.Conn
 	reader  *bufio.Reader
 	filters map[string]Filter
+	closed  bool
 }
 
 // Mode describes status of a TPV report
@@ -238,13 +239,19 @@ func (s *Session) deliverReport(class string, report interface{}) {
 	f(report)
 }
 
+func (s *Session) destroy() {
+	fmt.Fprintf(s.socket, "?WATCH={\"enable\":false}")
+	s.socket.Close()
+	s.closed = true
+}
+
 func watch(done chan bool, s *Session) {
 	// We're not using a JSON decoder because we first need to inspect
 	// the JSON string to determine it's "class"
 	for {
 		select {
 		case <-done:
-			fmt.Fprintf(s.socket, "?WATCH={\"enable\":false}")
+			s.destroy()
 			return
 		default:
 			if line, err := s.reader.ReadString('\n'); err == nil {
