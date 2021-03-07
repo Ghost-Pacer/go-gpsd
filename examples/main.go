@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	removeFilterTest()
+	restartSessionTest()
 }
 
 func setup() *gpsd.Session {
@@ -55,6 +55,22 @@ func disconnectTest() {
 	fmt.Println("Sleeping...")
 	time.Sleep(5 * time.Second)
 	fmt.Println("Done sleeping")
+}
+
+func restartSessionTest() {
+	gps := setup()
+
+	fmt.Println("Start Watching")
+	done := gps.Watch()
+	time.Sleep(3 * time.Second)
+
+	fmt.Println("Stop Watching")
+	done <- true
+	time.Sleep(3 * time.Second)
+
+	fmt.Println("Start Watching")
+	done = gps.Watch()
+	time.Sleep(3 * time.Second)
 }
 
 func removeFilterTest() {
