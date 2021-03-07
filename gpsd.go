@@ -238,24 +238,29 @@ func watch(done chan bool, s *Session) {
 	// We're not using a JSON decoder because we first need to inspect
 	// the JSON string to determine it's "class"
 	for {
-		if line, err := s.reader.ReadString('\n'); err == nil {
-			var reportPeek gpsdReport
-			lineBytes := []byte(line)
-			if err = json.Unmarshal(lineBytes, &reportPeek); err == nil {
-				if s.filters[reportPeek.Class] == nil {
-					continue
-				}
+		select {
+		case <-done:
+			return
+		default:
+			if line, err := s.reader.ReadString('\n'); err == nil {
+				var reportPeek gpsdReport
+				lineBytes := []byte(line)
+				if err = json.Unmarshal(lineBytes, &reportPeek); err == nil {
+					if s.filters[reportPeek.Class] == nil {
+						continue
+					}
 
-				if report, err2 := unmarshalReport(reportPeek.Class, lineBytes); err2 == nil {
-					s.deliverReport(reportPeek.Class, report)
+					if report, err2 := unmarshalReport(reportPeek.Class, lineBytes); err2 == nil {
+						s.deliverReport(reportPeek.Class, report)
+					} else {
+						fmt.Println("JSON parsing error 2:", err)
+					}
 				} else {
-					fmt.Println("JSON parsing error 2:", err)
+					fmt.Println("JSON parsing error:", err)
 				}
 			} else {
-				fmt.Println("JSON parsing error:", err)
+				fmt.Println("Stream reader error (is gpsd running?):", err)
 			}
-		} else {
-			fmt.Println("Stream reader error (is gpsd running?):", err)
 		}
 	}
 }
