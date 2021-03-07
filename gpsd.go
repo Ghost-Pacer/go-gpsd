@@ -229,6 +229,10 @@ func (s *Session) AddFilter(class string, f Filter) {
 	s.filters[class] = f
 }
 
+func (s *Session) RemoveFilter(class string) {
+	s.filters[class] = nil
+}
+
 func (s *Session) deliverReport(class string, report interface{}) {
 	f := s.filters[class]
 	f(report)
