@@ -7,10 +7,10 @@ import (
 )
 
 func main() {
-	disconnectTest()
+	removeFilterTest()
 }
 
-func connectTest() {
+func setup() *gpsd.Session {
 	var gps *gpsd.Session
 	var err error
 
@@ -31,28 +31,18 @@ func connectTest() {
 
 	gps.AddFilter("SKY", skyfilter)
 
+	return gps
+}
+
+func connectTest() {
+	gps := setup()
 	done := gps.Watch()
 	<-done
 
 }
 
 func disconnectTest() {
-	gps, err := gpsd.Dial(gpsd.DefaultAddress)
-	if err != nil {
-		panic("uh oh.")
-	}
-
-	gps.AddFilter("TPV", func(r interface{}) {
-		tpv := r.(*gpsd.TPVReport)
-		fmt.Println("TPV", tpv.Mode, tpv.Time)
-	})
-
-	gps.AddFilter("SKY", func(r interface{}) {
-		sky := r.(*gpsd.SKYReport)
-
-		fmt.Println("SKY", len(sky.Satellites), "satellites")
-	})
-
+	gps := setup()
 	done := gps.Watch()
 
 	fmt.Println("Sleeping...")
@@ -65,4 +55,19 @@ func disconnectTest() {
 	fmt.Println("Sleeping...")
 	time.Sleep(5 * time.Second)
 	fmt.Println("Done sleeping")
+}
+
+func removeFilterTest() {
+	gps := setup()
+	done := gps.Watch()
+
+	fmt.Println("Started watching")
+	time.Sleep(3 * time.Second)
+
+	fmt.Println("Removing TPV Filter")
+	gps.RemoveFilter("TPV")
+
+	time.Sleep(8 * time.Second)
+	done <- true
+	fmt.Println("Finished.")
 }
