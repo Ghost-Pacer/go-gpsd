@@ -18,7 +18,7 @@ type Filter func(interface{})
 type Session struct {
 	socket  net.Conn
 	reader  *bufio.Reader
-	filters map[string][]Filter
+	filters map[string]Filter
 }
 
 // Mode describes status of a TPV report
@@ -189,7 +189,7 @@ func Dial(address string) (session *Session, err error) {
 
 	session.reader = bufio.NewReader(session.socket)
 	session.reader.ReadString('\n')
-	session.filters = make(map[string][]Filter)
+	session.filters = make(map[string]Filter)
 
 	return
 }
@@ -226,13 +226,12 @@ func (s *Session) SendCommand(command string) {
 //    done := gps.Watch()
 //    <- done
 func (s *Session) AddFilter(class string, f Filter) {
-	s.filters[class] = append(s.filters[class], f)
+	s.filters[class] = f
 }
 
 func (s *Session) deliverReport(class string, report interface{}) {
-	for _, f := range s.filters[class] {
-		f(report)
-	}
+	f := s.filters[class]
+	f(report)
 }
 
 func watch(done chan bool, s *Session) {
@@ -243,7 +242,7 @@ func watch(done chan bool, s *Session) {
 			var reportPeek gpsdReport
 			lineBytes := []byte(line)
 			if err = json.Unmarshal(lineBytes, &reportPeek); err == nil {
-				if len(s.filters[reportPeek.Class]) == 0 {
+				if s.filters[reportPeek.Class] == nil {
 					continue
 				}
 
